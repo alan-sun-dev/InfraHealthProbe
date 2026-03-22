@@ -37,9 +37,11 @@ def get_hints(target_id: str, probe_results: list[ProbeResult]) -> list[Hint]:
     http = by_name.get("http")
 
     # Rule 1: All probes failed → host likely down or unreachable
+    # Only trigger if multiple probe types all failed (single-probe failure
+    # should be analyzed by specific rules, not short-circuited as "host down")
     failed_probes = [pr for pr in probe_results if pr.status in
                      (ProbeStatus.FAILED, ProbeStatus.ERROR, ProbeStatus.TIMEOUT)]
-    if len(failed_probes) == len(probe_results) and len(probe_results) > 0:
+    if len(failed_probes) == len(probe_results) and len(probe_results) > 1:
         hints.append(Hint(
             cause="Host appears down or unreachable",
             confidence="high",
