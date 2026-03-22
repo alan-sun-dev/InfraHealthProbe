@@ -36,8 +36,8 @@ coverage.xml
 *.pem
 *.key
 
-# Output
-output/
+# Output (run results, not source code)
+/output/
 *.log
 
 # Claude

@@ -9,6 +9,7 @@ Infrastructure health detection platform. Inventory-driven probe engine for serv
 ```
 InfraHealthProbe/
 ├── infra/                       # Core platform (Python 3.10+)
+│   ├── __main__.py              # python -m infra
 │   ├── cli.py                   # CLI entry point (argparse)
 │   ├── config.py                # Profile loading + CLI merge
 │   ├── runner.py                # Probe dispatcher (ThreadPoolExecutor)
@@ -24,8 +25,11 @@ InfraHealthProbe/
 │   │   ├── tcp.py               # TCP port check (multi-port)
 │   │   ├── http.py              # HTTP/HTTPS response + TLS timing
 │   │   └── wifi_adapter.py      # Consumes Collect-WiFiMeetingTest JSONL/CSV output
-│   └── analytics/               # Verdict, scoring, root-cause hints
-│       └── verdict.py           # Per-metric verdict (GOOD/FAIR/POOR/SEVERE), scoring
+│   ├── analytics/               # Verdict, scoring, root-cause hints
+│   │   └── verdict.py           # Per-metric verdict (GOOD/FAIR/POOR/SEVERE), scoring
+│   └── output/                  # Output writers
+│       ├── csv_writer.py        # ProbeResult → CSV (fixed column order)
+│       └── manifest.py          # Run metadata → JSON
 │
 ├── schemas/                     # JSON Schema definitions
 ├── profiles/                    # Probe profiles per target type
@@ -66,8 +70,14 @@ pytest tests/test_inventory.py
 pytest tests/test_probes.py
 pytest tests/test_config.py
 
-# Run platform (M1+)
-python -m infra.cli --inventory inventory/targets.json --output-dir ./output
+# Run platform
+python -m infra --inventory inventory/targets.json --output-dir ./output
+
+# Run with filters
+python -m infra -i inventory/targets.json --location Taiwan --probes ping dns
+
+# Run with custom profile
+python -m infra -i inventory/targets.json -p profiles/default.json -o ./output
 ```
 
 ## Development Milestones
