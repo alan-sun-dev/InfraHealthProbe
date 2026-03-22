@@ -1,0 +1,22 @@
+{
+  "ProfileName": "default",
+  "Description": "Default probe profile — ping, DNS, TCP, HTTP",
+  "Probes": {
+    "ping": { "enabled": true, "timeout_ms": 5000, "count": 4 },
+    "dns": { "enabled": true, "timeout_ms": 5000 },
+    "tcp": { "enabled": true, "timeout_ms": 5000 },
+    "http": { "enabled": true, "timeout_ms": 10000 }
+  },
+  "Thresholds": {
+    "ping_latency_ms": { "good": 5, "fair": 15, "poor": 30 },
+    "ping_loss_pct": { "good": 0, "fair": 1, "poor": 3 },
+    "dns_latency_ms": { "good": 150, "fair": 300, "poor": 500 },
+    "tcp_latency_ms": { "good": 150, "fair": 300, "poor": 500 },
+    "http_latency_ms": { "good": 300, "fair": 700, "poor": 1000 }
+  },
+  "Schedule": {
+    "interval_minutes": 5,
+    "retry_on_failure": true,
+    "max_retries": 2
+  }
+}

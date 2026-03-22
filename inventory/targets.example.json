@@ -1,0 +1,53 @@
+[
+  {
+    "TargetId": "SG-CLEARANCE-NARUWAN",
+    "Type": "Export",
+    "Location": "Singapore",
+    "Function": "Clearance System",
+    "Hostname": "naruwan",
+    "FQDN": "naruwan.example.com",
+    "IPAddress": "10.45.197.24",
+    "OS": "Linux",
+    "Urls": [
+      "http://naruwan.example.com/app/prod/",
+      "http://naruwan.example.com/app/scan/login.cgi"
+    ],
+    "Ports": [80, 443],
+    "ProbeProfile": "clearance-system-linux",
+    "Enabled": true,
+    "Priority": "High",
+    "OwnerGroup": "ACCS"
+  },
+  {
+    "TargetId": "TW-TPEIP-CACHE-YAMI",
+    "Type": "Export",
+    "Location": "Taiwan/TPEIP",
+    "Function": "Local Cache Server",
+    "Hostname": "yami",
+    "FQDN": "yami.example.com",
+    "IPAddress": "155.161.252.18",
+    "OS": "Linux",
+    "Urls": [],
+    "Ports": [22, 80, 443],
+    "ProbeProfile": "cache-server-linux",
+    "Enabled": true,
+    "Priority": "Normal",
+    "OwnerGroup": "ACCS"
+  },
+  {
+    "TargetId": "TW-TPEIP-EDI-SERVER",
+    "Type": "Import",
+    "Location": "Taiwan/TPEIP",
+    "Function": "Local EDI Server",
+    "Hostname": "edi-tw",
+    "FQDN": "edi-tw.example.com",
+    "IPAddress": "10.100.50.10",
+    "OS": "Windows",
+    "Urls": [],
+    "Ports": [135, 445, 3389],
+    "ProbeProfile": "edi-server-windows",
+    "Enabled": true,
+    "Priority": "Normal",
+    "OwnerGroup": "EDI-OPS"
+  }
+]
