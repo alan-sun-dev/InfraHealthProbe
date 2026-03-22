@@ -24,12 +24,19 @@ InfraHealthProbe/
 │   │   ├── dns.py               # DNS resolution timing
 │   │   ├── tcp.py               # TCP port check (multi-port)
 │   │   ├── http.py              # HTTP/HTTPS response + TLS timing
+│   │   ├── ssh.py               # SSH reachability + banner detection
 │   │   └── wifi_adapter.py      # Consumes Collect-WiFiMeetingTest JSONL/CSV output
 │   ├── analytics/               # Verdict, scoring, root-cause hints
-│   │   └── verdict.py           # Per-metric verdict (GOOD/FAIR/POOR/SEVERE), scoring
-│   └── output/                  # Output writers
-│       ├── csv_writer.py        # ProbeResult → CSV (fixed column order)
-│       └── manifest.py          # Run metadata → JSON
+│   │   ├── verdict.py           # Per-metric verdict (GOOD/FAIR/POOR/SEVERE)
+│   │   ├── scoring.py           # Weighted health score per target
+│   │   ├── hints.py             # Rule-based root-cause hints (7 rules)
+│   │   └── summary.py           # Executive + technical summary text
+│   ├── output/                  # Output writers
+│   │   ├── csv_writer.py        # ProbeResult → CSV (fixed column order)
+│   │   ├── json_writer.py       # ProbeResult → JSON Lines
+│   │   ├── html_report.py       # Standalone HTML report (inline CSS)
+│   │   └── manifest.py          # Run metadata → JSON
+│   └── scheduler.py             # Scheduled mode (repeating probe cycles)
 │
 ├── schemas/                     # JSON Schema definitions
 ├── profiles/                    # Probe profiles per target type
@@ -78,6 +85,9 @@ python -m infra -i inventory/targets.json --location Taiwan --probes ping dns
 
 # Run with custom profile
 python -m infra -i inventory/targets.json -p profiles/default.json -o ./output
+
+# Scheduled mode (repeat every 5 minutes, Ctrl+C to stop)
+python -m infra -i inventory/targets.json --mode scheduled --interval 5
 ```
 
 ## Development Milestones

@@ -8,7 +8,7 @@ from infra.probes.base import BaseProbe, ProbeResult, ProbeStatus
 
 class TestProbeRegistry:
     def test_all_probes_registered(self):
-        expected = {"ping", "dns", "tcp", "http", "wifi"}
+        expected = {"ping", "dns", "tcp", "http", "ssh", "wifi"}
         assert set(PROBE_REGISTRY.keys()) == expected
 
     def test_get_probe_returns_instance(self):

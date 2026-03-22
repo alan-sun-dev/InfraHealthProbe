@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import sys
-import time
 from pathlib import Path
 
 from .config import load_profile, merge_cli_overrides, Profile
@@ -12,12 +11,14 @@ from .inventory.core import filter_targets
 from .inventory.local_json import load_json_inventory
 from .inventory.local_csv import load_csv_inventory
 from .analytics.scoring import score_target
-from .analytics.summary import generate_summary, write_summary
+from .analytics.summary import write_summary
 from .output.csv_writer import write_csv
 from .output.json_writer import write_jsonl
+from .output.html_report import write_html_report
 from .output.manifest import write_manifest
 from .probes import list_probes
 from .runner import run_all
+from .scheduler import Scheduler
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -39,6 +40,18 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--output-dir", "-o",
         default="./output",
         help="Output directory for results (default: ./output)",
+    )
+    parser.add_argument(
+        "--mode", "-m",
+        choices=["oneshot", "scheduled"],
+        default="oneshot",
+        help="Run mode: oneshot (default) or scheduled (repeating)",
+    )
+    parser.add_argument(
+        "--interval",
+        type=int,
+        default=None,
+        help="Override schedule interval in minutes (scheduled mode)",
     )
     parser.add_argument(
         "--location",
@@ -92,6 +105,57 @@ def _log(msg: str, quiet: bool = False):
         print(msg, file=sys.stderr)
 
 
+def _run_oneshot(args, targets, profile) -> int:
+    """Single probe run."""
+    _log("Running probes...", args.quiet)
+    run_result = run_all(targets, profile, max_workers=args.workers)
+
+    # Per-target results
+    _log("", args.quiet)
+    for tr in run_result.target_results:
+        ts = score_target(tr.target.target_id, tr.probe_results)
+        icon = "OK" if ts.overall_verdict.value == "GOOD" else "!!"
+        _log(
+            f"  [{icon}] {tr.target.target_id:<40} "
+            f"{ts.overall_verdict.value:<8} score={ts.health_score:<4} "
+            f"({tr.ok_count}/{len(tr.probe_results)} probes OK, {tr.elapsed_ms:.0f}ms)",
+            args.quiet,
+        )
+    _log("", args.quiet)
+
+    # Write outputs
+    output_dir = Path(args.output_dir)
+    output_files: dict[str, str] = {}
+
+    csv_path = write_csv(run_result, output_dir)
+    output_files["csv"] = str(csv_path)
+    _log(f"CSV:      {csv_path}", args.quiet)
+
+    jsonl_path = write_jsonl(run_result, output_dir)
+    output_files["jsonl"] = str(jsonl_path)
+    _log(f"JSONL:    {jsonl_path}", args.quiet)
+
+    summary_path = output_dir / f"InfraHealthProbe_{run_result.run_id}_summary.txt"
+    write_summary(run_result, str(summary_path))
+    output_files["summary"] = str(summary_path)
+    _log(f"Summary:  {summary_path}", args.quiet)
+
+    html_path = write_html_report(run_result, output_dir)
+    output_files["html"] = str(html_path)
+    _log(f"HTML:     {html_path}", args.quiet)
+
+    manifest_path = write_manifest(run_result, output_dir, output_files=output_files)
+    _log(f"Manifest: {manifest_path}", args.quiet)
+
+    # Final line
+    total = run_result.total_probes
+    ok = sum(tr.ok_count for tr in run_result.target_results)
+    fail = sum(tr.fail_count for tr in run_result.target_results)
+    _log(f"\nDone. {len(targets)} targets, {total} probes, {ok} OK, {fail} failed. ({run_result.elapsed_ms:.0f}ms)", args.quiet)
+
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
 
@@ -127,56 +191,21 @@ def main(argv: list[str] | None = None) -> int:
     else:
         profile = Profile(name="default")
 
-    profile = merge_cli_overrides(profile, probes=args.probes)
-
+    profile = merge_cli_overrides(profile, probes=args.probes, interval=args.interval)
     _log(f"Profile: {profile.name}", args.quiet)
 
-    # Run probes
-    _log(f"Running probes...", args.quiet)
-    run_result = run_all(targets, profile, max_workers=args.workers)
-
-    # Print per-target results with scores
-    _log("", args.quiet)
-    for tr in run_result.target_results:
-        ts = score_target(tr.target.target_id, tr.probe_results)
-        icon = "OK" if ts.overall_verdict.value == "GOOD" else "!!"
-        _log(
-            f"  [{icon}] {tr.target.target_id:<40} "
-            f"{ts.overall_verdict.value:<8} score={ts.health_score:<4} "
-            f"({tr.ok_count}/{len(tr.probe_results)} probes OK, {tr.elapsed_ms:.0f}ms)",
-            args.quiet,
+    # Dispatch by mode
+    if args.mode == "scheduled":
+        scheduler = Scheduler(
+            targets=targets,
+            profile=profile,
+            output_dir=args.output_dir,
+            max_workers=args.workers,
+            quiet=args.quiet,
         )
-
-    _log("", args.quiet)
-
-    # Write outputs
-    output_dir = Path(args.output_dir)
-    output_files: dict[str, str] = {}
-
-    csv_path = write_csv(run_result, output_dir)
-    output_files["csv"] = str(csv_path)
-    _log(f"CSV:      {csv_path}", args.quiet)
-
-    jsonl_path = write_jsonl(run_result, output_dir)
-    output_files["jsonl"] = str(jsonl_path)
-    _log(f"JSONL:    {jsonl_path}", args.quiet)
-
-    summary_path = output_dir / f"InfraHealthProbe_{run_result.run_id}_summary.txt"
-    summary_text = write_summary(run_result, str(summary_path))
-    output_files["summary"] = str(summary_path)
-    _log(f"Summary:  {summary_path}", args.quiet)
-
-    manifest_path = write_manifest(run_result, output_dir, output_files=output_files)
-    output_files["manifest"] = str(manifest_path)
-    _log(f"Manifest: {manifest_path}", args.quiet)
-
-    # Final line
-    total = run_result.total_probes
-    ok = sum(tr.ok_count for tr in run_result.target_results)
-    fail = sum(tr.fail_count for tr in run_result.target_results)
-    _log(f"\nDone. {len(targets)} targets, {total} probes, {ok} OK, {fail} failed. ({run_result.elapsed_ms:.0f}ms)", args.quiet)
-
-    return 0
+        return scheduler.run()
+    else:
+        return _run_oneshot(args, targets, profile)
 
 
 if __name__ == "__main__":

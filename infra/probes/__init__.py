@@ -7,6 +7,7 @@ from .ping import PingProbe
 from .dns import DnsProbe
 from .tcp import TcpProbe
 from .http import HttpProbe
+from .ssh import SshProbe
 from .wifi_adapter import WiFiProbeAdapter
 
 # Registry: probe name -> probe class
@@ -15,6 +16,7 @@ PROBE_REGISTRY: dict[str, type[BaseProbe]] = {
     "dns": DnsProbe,
     "tcp": TcpProbe,
     "http": HttpProbe,
+    "ssh": SshProbe,
     "wifi": WiFiProbeAdapter,
 }
 

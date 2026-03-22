@@ -83,18 +83,35 @@ def _resolve_probes_for_target(target: Target, profile: Profile) -> list[str]:
         candidates.append("tcp")
     if target.urls:
         candidates.append("http")
+    if 22 in target.ports or (target.os and target.os.lower() == "linux"):
+        candidates.append("ssh")
 
     # Filter by profile enable/disable
     return [p for p in candidates if profile.is_probe_enabled(p)]
 
 
-def _run_probe(probe_name: str, target_dict: dict) -> ProbeResult:
-    """Run a single probe (designed to run in a thread)."""
+def _run_probe(probe_name: str, target_dict: dict, max_retries: int = 0) -> ProbeResult:
+    """Run a single probe with optional retry (designed to run in a thread).
+
+    Retries only on FAILED/TIMEOUT/ERROR, not on OK/DEGRADED/SKIPPED.
+    """
     probe = get_probe(probe_name)
-    return probe.probe_safe(target_dict)
+    result = probe.probe_safe(target_dict)
+
+    retries = 0
+    while (result.status in (ProbeStatus.FAILED, ProbeStatus.TIMEOUT, ProbeStatus.ERROR)
+           and retries < max_retries):
+        retries += 1
+        time.sleep(0.5 * retries)  # brief backoff
+        result = probe.probe_safe(target_dict)
+
+    if retries > 0:
+        result.detail = f"{result.detail}; retried {retries}x".strip("; ")
+
+    return result
 
 
-def run_probes_for_target(target: Target, profile: Profile, max_workers: int = 4) -> TargetResult:
+def run_probes_for_target(target: Target, profile: Profile, max_workers: int = 4, max_retries: int = 0) -> TargetResult:
     """Run all applicable probes against a single target in parallel.
 
     Args:
@@ -120,7 +137,7 @@ def run_probes_for_target(target: Target, profile: Profile, max_workers: int = 4
 
     with ThreadPoolExecutor(max_workers=min(max_workers, len(probe_names))) as executor:
         futures = {
-            executor.submit(_run_probe, name, target_dict): name
+            executor.submit(_run_probe, name, target_dict, max_retries): name
             for name in probe_names
         }
         for future in as_completed(futures):
@@ -157,8 +174,9 @@ def run_all(targets: list[Target], profile: Profile, max_workers: int = 8) -> Ru
     errors: list[str] = []
 
     with ThreadPoolExecutor(max_workers=min(max_workers, len(targets))) as executor:
+        retries = profile.schedule.max_retries if profile.schedule.retry_on_failure else 0
         futures = {
-            executor.submit(run_probes_for_target, target, profile): target
+            executor.submit(run_probes_for_target, target, profile, 4, retries): target
             for target in targets
         }
         for future in as_completed(futures):
