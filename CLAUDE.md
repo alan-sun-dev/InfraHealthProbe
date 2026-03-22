@@ -104,6 +104,43 @@ Platform triggers WiFi collection via SSH/WinRM/scheduled task on Windows endpoi
 | Raspberry Pi probes | Python | Linux (ARM) | lightweight, native network tools |
 | Windows endpoint probes | PowerShell 5.1 | Windows | netsh, NIC, Teams, power mgmt — Windows-only APIs |
 
+## Testing Strategy (Tiered)
+
+Inspired by gstack's tiered testing approach:
+
+| Tier | Scope | Cost | Speed |
+|------|-------|------|-------|
+| Tier 1 | Inventory, analytics, verdict unit tests | Free | Seconds |
+| Tier 2 | Real network probe integration tests | Free (needs network) | Minutes |
+| Tier 3 | AI analysis quality evaluation (LLM-as-judge) | API cost | Minutes |
+
+Run Tier 1 first. Only run Tier 3 when AI modules change.
+
+## Architecture Reference: gstack Patterns
+
+Analysis of [garrytan/gstack](https://github.com/garrytan/gstack) (v0.9.9) identified patterns applicable to this project:
+
+### Adopted patterns
+
+- **Probe contract registry** — gstack uses a single command registry (`commands.ts`) shared by server, validator, and tests. Our `BaseProbe` ABC serves the same purpose; extend with auto-discovery in `platform/probes/__init__.py`.
+- **File-based coordination** — gstack agents coordinate via git + files, not IPC. Same as our WiFi tool integration (JSONL/CSV contract) and Linux↔Windows↔Raspberry Pi boundary.
+- **Tiered testing** — Tier 1 free/fast (unit), Tier 2 network-dependent (integration), Tier 3 paid (AI eval). Prevents wasting API cost on every test run.
+- **Circular buffer for long-running probe** — gstack uses ring buffers for console/network logs in its persistent daemon. Apply to platform daemon mode for bounded probe result history.
+
+### Noted but not adopted
+
+- **Persistent headless browser** — gstack's core is a Chromium daemon for QA. Not needed; our HTTP probe uses `urllib`/`httpx` for URL checks. If deep URL content validation is needed later, consider adding a lightweight `content_check` option to `HttpProbe` (keyword matching in response body) rather than a full browser.
+- **Markdown skill system** — gstack's 25 workflow skills simulate team roles (CEO, QA, designer). Not applicable; InfraHealthProbe is a platform, not an AI dev assistant.
+- **Conductor multi-agent orchestration** — gstack uses Conductor to run 10-15 parallel Claude Code sessions in git worktrees. Our platform IS the orchestrator (scheduler + probe dispatcher), so external agent coordination is not needed.
+
+### Multi-agent philosophy (from gstack)
+
+gstack proves that multi-component coordination doesn't need complex frameworks:
+- **Git + files + structured process** is sufficient
+- Each component (Linux platform, Windows probe, Raspberry Pi) runs independently
+- Coordination happens through shared schemas and file contracts
+- This matches our architecture: independent runtimes, canonical data models, file-based integration
+
 ## Git Workflow
 
 - `main`: stable releases
