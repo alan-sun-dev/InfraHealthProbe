@@ -13,10 +13,11 @@ from .verdict import (
 
 # Default weights — how much each probe contributes to overall score
 DEFAULT_WEIGHTS: dict[str, int] = {
-    "ping": 30,
+    "ping": 25,
     "dns": 20,
-    "tcp": 25,
-    "http": 25,
+    "tcp": 20,
+    "http": 20,
+    "ssh": 15,
 }
 
 
@@ -51,6 +52,8 @@ def _extract_metric(probe_result: ProbeResult) -> tuple[str, float | None]:
         return "tcp_latency_ms", probe_result.latency_ms
     elif name == "http":
         return "http_latency_ms", probe_result.latency_ms
+    elif name == "ssh":
+        return "tcp_latency_ms", probe_result.latency_ms  # SSH uses TCP thresholds
     return f"{name}_latency_ms", probe_result.latency_ms
 
 

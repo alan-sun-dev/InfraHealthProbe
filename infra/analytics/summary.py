@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from ..runner import RunResult, TargetResult
 from ..probes.base import ProbeStatus
 from .scoring import score_target, TargetScore
@@ -132,6 +134,8 @@ def write_summary(run_result: RunResult, output_path: str) -> str:
         The summary text.
     """
     text = generate_summary(run_result)
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(text)
     return text

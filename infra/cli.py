@@ -84,11 +84,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def _load_inventory(path: str):
-    """Load inventory from JSON or CSV based on file extension."""
+    """Load inventory from JSON or CSV based on file extension.
+
+    Raises ValueError for unsupported formats or FileNotFoundError.
+    """
     p = Path(path)
     if not p.exists():
-        print(f"Error: inventory file not found: {path}", file=sys.stderr)
-        sys.exit(1)
+        raise FileNotFoundError(f"Inventory file not found: {path}")
 
     ext = p.suffix.lower()
     if ext == ".json":
@@ -96,8 +98,7 @@ def _load_inventory(path: str):
     elif ext == ".csv":
         return load_csv_inventory(p)
     else:
-        print(f"Error: unsupported inventory format: {ext} (use .json or .csv)", file=sys.stderr)
-        sys.exit(1)
+        raise ValueError(f"Unsupported inventory format: {ext} (use .json or .csv)")
 
 
 def _log(msg: str, quiet: bool = False):

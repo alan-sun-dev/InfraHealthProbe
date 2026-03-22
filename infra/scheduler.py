@@ -12,6 +12,7 @@ from .inventory.core import Target
 from .runner import run_all, RunResult
 from .output.csv_writer import write_csv
 from .output.json_writer import write_jsonl
+from .output.html_report import write_html_report
 from .output.manifest import write_manifest
 from .analytics.summary import write_summary
 from .analytics.scoring import score_target
@@ -72,6 +73,9 @@ class Scheduler:
         summary_path = self.output_dir / f"InfraHealthProbe_{run_result.run_id}_summary.txt"
         write_summary(run_result, str(summary_path))
         output_files["summary"] = str(summary_path)
+
+        html_path = write_html_report(run_result, self.output_dir)
+        output_files["html"] = str(html_path)
 
         write_manifest(run_result, self.output_dir, output_files=output_files)
 

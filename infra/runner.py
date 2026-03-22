@@ -5,11 +5,10 @@ from __future__ import annotations
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
-from typing import Any
 
 from .config import Profile
 from .inventory.core import Target
-from .probes import get_probe, list_probes
+from .probes import get_probe
 from .probes.base import ProbeResult, ProbeStatus
 
 
