@@ -11,7 +11,10 @@ from .config import load_profile, merge_cli_overrides, Profile
 from .inventory.core import filter_targets
 from .inventory.local_json import load_json_inventory
 from .inventory.local_csv import load_csv_inventory
+from .analytics.scoring import score_target
+from .analytics.summary import generate_summary, write_summary
 from .output.csv_writer import write_csv
+from .output.json_writer import write_jsonl
 from .output.manifest import write_manifest
 from .probes import list_probes
 from .runner import run_all
@@ -132,13 +135,14 @@ def main(argv: list[str] | None = None) -> int:
     _log(f"Running probes...", args.quiet)
     run_result = run_all(targets, profile, max_workers=args.workers)
 
-    # Print summary
+    # Print per-target results with scores
     _log("", args.quiet)
     for tr in run_result.target_results:
-        status_icon = "OK" if tr.worst_status.value == "OK" else "!!"
+        ts = score_target(tr.target.target_id, tr.probe_results)
+        icon = "OK" if ts.overall_verdict.value == "GOOD" else "!!"
         _log(
-            f"  [{status_icon}] {tr.target.target_id:<40} "
-            f"{tr.worst_status.value:<10} "
+            f"  [{icon}] {tr.target.target_id:<40} "
+            f"{ts.overall_verdict.value:<8} score={ts.health_score:<4} "
             f"({tr.ok_count}/{len(tr.probe_results)} probes OK, {tr.elapsed_ms:.0f}ms)",
             args.quiet,
         )
@@ -146,17 +150,27 @@ def main(argv: list[str] | None = None) -> int:
     _log("", args.quiet)
 
     # Write outputs
-    csv_path = write_csv(run_result, args.output_dir)
+    output_dir = Path(args.output_dir)
+    output_files: dict[str, str] = {}
+
+    csv_path = write_csv(run_result, output_dir)
+    output_files["csv"] = str(csv_path)
     _log(f"CSV:      {csv_path}", args.quiet)
 
-    manifest_path = write_manifest(
-        run_result,
-        args.output_dir,
-        output_files={"csv": str(csv_path)},
-    )
+    jsonl_path = write_jsonl(run_result, output_dir)
+    output_files["jsonl"] = str(jsonl_path)
+    _log(f"JSONL:    {jsonl_path}", args.quiet)
+
+    summary_path = output_dir / f"InfraHealthProbe_{run_result.run_id}_summary.txt"
+    summary_text = write_summary(run_result, str(summary_path))
+    output_files["summary"] = str(summary_path)
+    _log(f"Summary:  {summary_path}", args.quiet)
+
+    manifest_path = write_manifest(run_result, output_dir, output_files=output_files)
+    output_files["manifest"] = str(manifest_path)
     _log(f"Manifest: {manifest_path}", args.quiet)
 
-    # Summary line
+    # Final line
     total = run_result.total_probes
     ok = sum(tr.ok_count for tr in run_result.target_results)
     fail = sum(tr.fail_count for tr in run_result.target_results)
