@@ -33,15 +33,19 @@ class PingProbe(BaseProbe):
             )
 
         count = 4
-        timeout_sec = self.timeout_ms // 1000
+        timeout_sec = max(1, self.timeout_ms // 1000)
 
         if sys.platform == "win32":
             cmd = ["ping", "-n", str(count), "-w", str(self.timeout_ms), host]
         else:
             cmd = ["ping", "-c", str(count), "-W", str(timeout_sec), host]
 
+        # Windows: -w is per-packet ms, so total can be count * timeout_sec + margin
+        # Linux: -W is total deadline on some systems, per-packet on others
+        subprocess_timeout = count * timeout_sec + 5
+
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_sec + 5)
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=subprocess_timeout)
             output = result.stdout
 
             loss = self._parse_loss(output)

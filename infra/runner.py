@@ -106,7 +106,8 @@ def _run_probe(probe_name: str, target_dict: dict, max_retries: int = 0) -> Prob
         result = probe.probe_safe(target_dict)
 
     if retries > 0:
-        result.detail = f"{result.detail}; retried {retries}x".strip("; ")
+        prefix = f"{result.detail}; " if result.detail else ""
+        result.detail = f"{prefix}retried {retries}x"
 
     return result
 

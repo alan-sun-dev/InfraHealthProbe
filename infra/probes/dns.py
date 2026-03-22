@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import socket
 import time
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 
 from .base import BaseProbe, ProbeResult, ProbeStatus
 
@@ -31,10 +32,14 @@ class DnsProbe(BaseProbe):
                 error="No hostname for DNS lookup",
             )
 
-        socket.setdefaulttimeout(self.timeout_ms / 1000)
+        # Run getaddrinfo in a worker thread with timeout to avoid
+        # mutating process-global socket.setdefaulttimeout (thread-unsafe).
         start = time.perf_counter()
         try:
-            results = socket.getaddrinfo(hostname, None)
+            with ThreadPoolExecutor(max_workers=1) as pool:
+                future = pool.submit(socket.getaddrinfo, hostname, None)
+                results = future.result(timeout=self.timeout_ms / 1000)
+
             elapsed_ms = (time.perf_counter() - start) * 1000
             ips = sorted(set(r[4][0] for r in results))
 
@@ -54,7 +59,7 @@ class DnsProbe(BaseProbe):
                 latency_ms=round(elapsed_ms, 2),
                 error=str(exc),
             )
-        except socket.timeout:
+        except (FuturesTimeoutError, TimeoutError):
             return ProbeResult(
                 probe_name=self.name,
                 target_id=target.get("TargetId", "unknown"),

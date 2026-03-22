@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -73,7 +74,8 @@ def load_profile(path: str | Path) -> Profile:
 
     thresholds = {}
     for name, cfg in raw.get("Thresholds", {}).items():
-        direction = Direction.HIGHER_IS_BETTER if "higher" in name.lower() else Direction.LOWER_IS_BETTER
+        dir_str = cfg.get("direction", "lower_is_better")
+        direction = Direction.HIGHER_IS_BETTER if dir_str == "higher_is_better" else Direction.LOWER_IS_BETTER
         thresholds[name] = VerdictThresholds(
             good=cfg["good"],
             fair=cfg["fair"],
@@ -99,18 +101,22 @@ def load_profile(path: str | Path) -> Profile:
 
 
 def merge_cli_overrides(profile: Profile, **overrides) -> Profile:
-    """Apply CLI argument overrides on top of a loaded profile.
+    """Apply CLI argument overrides on top of a profile copy.
+
+    Returns a new Profile; the original is not mutated.
 
     Supported overrides:
         interval: int — override schedule interval_minutes
         probes: list[str] — restrict to only these probe names
     """
+    merged = copy.deepcopy(profile)
+
     if "interval" in overrides and overrides["interval"] is not None:
-        profile.schedule.interval_minutes = overrides["interval"]
+        merged.schedule.interval_minutes = overrides["interval"]
 
     if "probes" in overrides and overrides["probes"] is not None:
         enabled_set = set(overrides["probes"])
-        for name in list(profile.probes.keys()):
-            profile.probes[name].enabled = name in enabled_set
+        for name in list(merged.probes.keys()):
+            merged.probes[name].enabled = name in enabled_set
 
-    return profile
+    return merged

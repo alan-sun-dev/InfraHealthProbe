@@ -59,8 +59,6 @@ def _extract_probe_metrics(tr: TargetResult) -> dict:
     row: dict = {}
 
     for pr in tr.probe_results:
-        name = pr.probe_name.capitalize()
-
         if pr.probe_name == "ping":
             row["PingStatus"] = pr.status.value
             row["PingLatencyAvgMs"] = pr.metrics.get("latency_avg_ms", "")

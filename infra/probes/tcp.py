@@ -46,13 +46,12 @@ class TcpProbe(BaseProbe):
         total_latency = 0.0
 
         for port in ports:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             start = time.perf_counter()
             try:
-                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 sock.settimeout(self.timeout_ms / 1000)
                 sock.connect((host, int(port)))
                 elapsed_ms = (time.perf_counter() - start) * 1000
-                sock.close()
                 port_results.append({"port": port, "open": True, "latency_ms": round(elapsed_ms, 2)})
                 total_latency += elapsed_ms
             except socket.timeout:
@@ -63,6 +62,8 @@ class TcpProbe(BaseProbe):
                 elapsed_ms = (time.perf_counter() - start) * 1000
                 port_results.append({"port": port, "open": False, "error": str(exc)})
                 worst_status = ProbeStatus.FAILED
+            finally:
+                sock.close()
 
         open_count = sum(1 for r in port_results if r.get("open"))
         avg_latency = round(total_latency / open_count, 2) if open_count else None

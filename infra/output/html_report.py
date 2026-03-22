@@ -38,7 +38,8 @@ def _esc(text: str) -> str:
             .replace("&", "&amp;")
             .replace("<", "&lt;")
             .replace(">", "&gt;")
-            .replace('"', "&quot;"))
+            .replace('"', "&quot;")
+            .replace("'", "&#x27;"))
 
 
 def write_html_report(run_result: RunResult, output_dir: str | Path) -> Path:

@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 
 from ..probes.base import ProbeResult, ProbeStatus
 from .verdict import (
-    Verdict, VerdictThresholds, Direction,
+    Verdict, VerdictThresholds,
     get_verdict, verdict_to_score, DEFAULT_THRESHOLDS,
 )
 

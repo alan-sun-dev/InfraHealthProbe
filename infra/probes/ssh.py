@@ -36,9 +36,9 @@ class SshProbe(BaseProbe):
         # Use port 22 by default; check if 22 is in target's port list
         port = 22
 
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         start = time.perf_counter()
         try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.settimeout(self.timeout_ms / 1000)
             sock.connect((host, port))
             elapsed_ms = (time.perf_counter() - start) * 1000
@@ -51,8 +51,6 @@ class SshProbe(BaseProbe):
                 banner = data.decode("utf-8", errors="replace").strip()
             except (socket.timeout, OSError):
                 pass
-            finally:
-                sock.close()
 
             return ProbeResult(
                 probe_name=self.name,
@@ -77,3 +75,5 @@ class SshProbe(BaseProbe):
                 latency_ms=round(elapsed_ms, 2),
                 error=str(exc),
             )
+        finally:
+            sock.close()

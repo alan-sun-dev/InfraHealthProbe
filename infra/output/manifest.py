@@ -39,7 +39,7 @@ def build_manifest(run_result: RunResult, output_files: dict[str, str] | None = 
         "profile_name": run_result.profile_name,
         "hostname": socket.gethostname(),
         "python_version": sys.version.split()[0],
-        "locale": locale.getdefaultlocale()[0] or "",
+        "locale": locale.getlocale()[0] or "",
         "start_time_utc": run_result.start_time_utc,
         "end_time_utc": run_result.end_time_utc,
         "elapsed_ms": run_result.elapsed_ms,
