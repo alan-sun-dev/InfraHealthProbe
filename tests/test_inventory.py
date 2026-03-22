@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from platform.inventory.core import (
+from infra.inventory.core import (
     Target,
     normalize_target,
     validate_target,
@@ -14,7 +14,7 @@ from platform.inventory.core import (
     merge_inventories,
     filter_targets,
 )
-from platform.inventory.local_json import load_json_inventory
+from infra.inventory.local_json import load_json_inventory
 
 
 class TestNormalizeTarget:

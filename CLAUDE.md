@@ -2,62 +2,51 @@
 
 ## Project Overview
 
-Infrastructure health detection platform. Inventory-driven probe engine for server, network, and service monitoring across APAC sites. Hybrid architecture: Python platform on Linux, PowerShell endpoint probes on Windows, Python lightweight probes on Raspberry Pi.
+Infrastructure health detection platform. Inventory-driven probe engine for server, network, and service monitoring across APAC sites.
 
 ## Architecture
 
 ```
 InfraHealthProbe/
-├── platform/                    # Linux control plane (Python)
-│   ├── main.py                  # Platform entry point
-│   ├── config.py                # Platform configuration
+├── infra/                       # Core platform (Python 3.10+)
+│   ├── cli.py                   # CLI entry point (argparse)
+│   ├── config.py                # Profile loading + CLI merge
+│   ├── runner.py                # Probe dispatcher (ThreadPoolExecutor)
 │   ├── inventory/               # Target inventory providers
-│   │   ├── core.py              # Normalize, validate, deduplicate, merge
+│   │   ├── core.py              # Target dataclass, validate, deduplicate, merge, filter
 │   │   ├── local_json.py        # JSON file provider
-│   │   ├── local_csv.py         # CSV file provider
-│   │   └── sharepoint.py        # SharePoint list provider
+│   │   └── local_csv.py         # CSV file provider
 │   ├── probes/                  # Probe engine
-│   │   ├── base.py              # Probe contract (ABC)
-│   │   ├── ping.py              # ICMP ping
+│   │   ├── __init__.py          # Probe registry (PROBE_REGISTRY, get_probe, list_probes)
+│   │   ├── base.py              # BaseProbe ABC + ProbeResult + ProbeStatus
+│   │   ├── ping.py              # ICMP ping (Linux/Windows)
 │   │   ├── dns.py               # DNS resolution timing
-│   │   ├── tcp.py               # TCP port check
+│   │   ├── tcp.py               # TCP port check (multi-port)
 │   │   ├── http.py              # HTTP/HTTPS response + TLS timing
-│   │   ├── ssh.py               # SSH reachability
-│   │   └── wifi_adapter.py      # Consumes Collect-WiFiMeetingTest output
-│   ├── analytics/               # Verdict, scoring, root-cause hints
-│   │   ├── verdict.py           # Per-metric verdict (GOOD/FAIR/POOR/SEVERE)
-│   │   ├── scoring.py           # Weighted health score
-│   │   ├── hints.py             # Rule-based root-cause hints
-│   │   └── summary.py           # Executive / technical summaries
-│   ├── ai/                      # AI analysis layer
-│   │   ├── client.py            # OpenAI-compatible API caller
-│   │   ├── payload.py           # Structured payload builder
-│   │   ├── prompts.py           # System/user prompt templates
-│   │   └── redaction.py         # Sensitive data masking
-│   ├── integrations/            # External system integrations
-│   │   └── servicenow.py        # ServiceNow incident creation
-│   └── output/                  # Output writers
-│       ├── csv_writer.py
-│       ├── json_writer.py
-│       ├── html_report.py
-│       └── manifest.py
-│
-├── raspi/                       # Raspberry Pi probe agent (Python)
-│   ├── main.py                  # Lightweight probe runner
-│   ├── wifi_scanner.py          # iwconfig/iw-based WiFi scanning
-│   ├── probes.py                # Subset of platform probes
-│   └── reporter.py              # Send results to platform
-│
-├── endpoint/                    # Windows endpoint probe (PowerShell)
-│   └── (references Collect-WiFiMeetingTest repo)
+│   │   └── wifi_adapter.py      # Consumes Collect-WiFiMeetingTest JSONL/CSV output
+│   └── analytics/               # Verdict, scoring, root-cause hints
+│       └── verdict.py           # Per-metric verdict (GOOD/FAIR/POOR/SEVERE), scoring
 │
 ├── schemas/                     # JSON Schema definitions
 ├── profiles/                    # Probe profiles per target type
 ├── inventory/                   # Target inventory data files
 ├── tests/                       # pytest test suite
-├── docs/                        # Architecture and planning docs
-└── deploy/                      # Deployment configs (Docker, LiteLLM)
+└── docs/                        # Architecture and planning docs
 ```
+
+### Why `infra/` not `platform/`
+
+`platform` is a Python standard library module. Using it as a package name causes import conflicts.
+
+### Modules added later (not in initial scaffold)
+
+These will be created when their milestone is reached:
+
+- `infra/output/` — CSV, JSON, HTML writers (M1)
+- `infra/analytics/scoring.py`, `hints.py`, `summary.py` — diagnostics intelligence (M2)
+- `infra/ai/` — LLM analysis layer (M4)
+- `infra/integrations/` — ServiceNow, SharePoint (M4)
+- `raspi/` — Raspberry Pi probe agent (M4)
 
 ## Relationship with Collect-WiFiMeetingTest
 
@@ -67,79 +56,69 @@ The WiFi diagnostics tool (`Collect-WiFiMeetingTest`) remains a **standalone pro
 
 ```bash
 # Install dependencies
-pip install -r requirements.txt
+pip install -e ".[dev]"
 
-# Run tests
+# Run all tests (Tier 1 — no network required)
 pytest tests/
 
-# Run platform
-python -m platform.main --inventory inventory/targets.json
+# Run specific test file
+pytest tests/test_inventory.py
+pytest tests/test_probes.py
+pytest tests/test_config.py
 
-# Run Raspberry Pi probe
-python -m raspi.main --config raspi/config.json
+# Run platform (M1+)
+python -m infra.cli --inventory inventory/targets.json --output-dir ./output
 ```
+
+## Development Milestones
+
+| Milestone | Focus | Deliverable |
+|-----------|-------|-------------|
+| M0 | Foundation | `infra/` rename, probe registry, profile loader |
+| M1 | Can run | cli.py, runner.py, CSV output, manifest |
+| M2 | Has diagnostic value | scoring, hints, summary, JSON output |
+| M3 | Operational | scheduled mode, HTML report, retry logic |
+| M4 | Extensions | AI, ServiceNow, SharePoint, Raspberry Pi |
+
+**Principle: each milestone produces a usable tool.** Don't jump ahead.
 
 ## Key Design Decisions
 
 ### Probe contract (ABC)
-Every probe must implement: `name`, `probe(target) -> ProbeResult`, `timeout_ms`, `expected_fields`. New probes (SSH, SFTP, WebRTC) are added by implementing this interface.
+Every probe implements: `name`, `probe(target) -> ProbeResult`, `timeout_ms`, `expected_fields`. New probes are added by implementing `BaseProbe` and registering in `PROBE_REGISTRY`.
+
+### Probe registry
+`infra/probes/__init__.py` maintains `PROBE_REGISTRY: dict[str, type[BaseProbe]]`. Use `get_probe("ping")` to instantiate, `list_probes()` to enumerate.
+
+### Profile system
+`profiles/*.json` define which probes to run, timeouts, and thresholds per target type. `infra/config.py` loads profiles and merges CLI overrides. Probes check `profile.is_probe_enabled(name)` before execution.
 
 ### Inventory provider pattern
-All inventory sources (JSON, CSV, SharePoint) normalize to canonical `Target` objects. Probe engine never knows the data source.
+All inventory sources (JSON, CSV, future SharePoint) normalize to canonical `Target` dataclass. Probe engine never knows the data source.
 
 ### AI is optional, never a dependency
 AI analysis runs post-collection, only when explicitly enabled or when verdict is POOR/SEVERE. Platform must function fully without AI.
 
-### Dual-layer diagnostics
-Rule engine (analytics/) does evidence organization first. AI (ai/) explains and suggests second. Never raw data -> AI.
-
 ### WiFi tool integration is CLI/file-based
 Platform triggers WiFi collection via SSH/WinRM/scheduled task on Windows endpoints, then fetches JSONL/CSV output. No PowerShell internals crossing the boundary.
 
-## Language Boundaries
-
-| Component | Language | Platform | Why |
-|-----------|----------|----------|-----|
-| Platform control plane | Python | Linux | daemon/scheduler/Docker/GPU serving ecosystem |
-| Raspberry Pi probes | Python | Linux (ARM) | lightweight, native network tools |
-| Windows endpoint probes | PowerShell 5.1 | Windows | netsh, NIC, Teams, power mgmt — Windows-only APIs |
-
 ## Testing Strategy (Tiered)
-
-Inspired by gstack's tiered testing approach:
 
 | Tier | Scope | Cost | Speed |
 |------|-------|------|-------|
-| Tier 1 | Inventory, analytics, verdict unit tests | Free | Seconds |
+| Tier 1 | Inventory, analytics, config, probe registry | Free | Seconds |
 | Tier 2 | Real network probe integration tests | Free (needs network) | Minutes |
-| Tier 3 | AI analysis quality evaluation (LLM-as-judge) | API cost | Minutes |
+| Tier 3 | AI analysis quality evaluation | API cost | Minutes |
 
 Run Tier 1 first. Only run Tier 3 when AI modules change.
 
-## Architecture Reference: gstack Patterns
+## Architecture Reference
 
-Analysis of [garrytan/gstack](https://github.com/garrytan/gstack) (v0.9.9) identified patterns applicable to this project:
-
-### Adopted patterns
-
-- **Probe contract registry** — gstack uses a single command registry (`commands.ts`) shared by server, validator, and tests. Our `BaseProbe` ABC serves the same purpose; extend with auto-discovery in `platform/probes/__init__.py`.
-- **File-based coordination** — gstack agents coordinate via git + files, not IPC. Same as our WiFi tool integration (JSONL/CSV contract) and Linux↔Windows↔Raspberry Pi boundary.
-- **Tiered testing** — Tier 1 free/fast (unit), Tier 2 network-dependent (integration), Tier 3 paid (AI eval). Prevents wasting API cost on every test run.
-- **Circular buffer for long-running probe** — gstack uses ring buffers for console/network logs in its persistent daemon. Apply to platform daemon mode for bounded probe result history.
-
-### Noted but not adopted
-
-- **Persistent headless browser** — gstack's core is a Chromium daemon for QA. Not needed; our HTTP probe uses `urllib`/`httpx` for URL checks. If deep URL content validation is needed later, consider adding a lightweight `content_check` option to `HttpProbe` (keyword matching in response body) rather than a full browser.
-- **Markdown skill system** — gstack's 25 workflow skills simulate team roles (CEO, QA, designer). Not applicable; InfraHealthProbe is a platform, not an AI dev assistant.
-- **Conductor multi-agent orchestration** — gstack uses Conductor to run 10-15 parallel Claude Code sessions in git worktrees. Our platform IS the orchestrator (scheduler + probe dispatcher), so external agent coordination is not needed.
-
-### Multi-agent philosophy (from gstack)
-
-gstack proves that multi-component coordination doesn't need complex frameworks:
-- **Git + files + structured process** is sufficient
-- Each component (Linux platform, Windows probe, Raspberry Pi) runs independently
-- Coordination happens through shared schemas and file contracts
-- This matches our architecture: independent runtimes, canonical data models, file-based integration
+See `docs/reference-gstack-analysis.md` for patterns adopted from garrytan/gstack:
+- Probe contract registry (single source of truth)
+- File-based coordination (git + shared schemas)
+- Tiered testing (free/fast → paid/thorough)
+- Multi-component philosophy (independent runtimes, canonical data models)
 
 ## Git Workflow
 
