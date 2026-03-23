@@ -22,10 +22,10 @@
 
 ```bash
 # 安裝（含開發工具）
-pip install -e ".[dev]"
+uv pip install -e ".[dev]"
 
 # 僅安裝核心
-pip install -e .
+uv pip install -e .
 ```
 
 ## 快速開始
